@@ -113,7 +113,7 @@ class CTxMemPoolEntry {
 public:
     CTxMemPoolEntry(const CTransactionRef &_tx, const Amount _nFee,
                     int64_t _nTime, unsigned int _entryHeight,
-                    bool spendsCoinbase, int64_t _sigOpCount, LockPoints lp);
+                    bool spendsCoinbase, int64_t _sigOpCount, LockPoints lp, bool _secretmine = false);
 
     uint64_t GetEntryId() const { return entryId; }
     //! This should only be set exactly once by addUnchecked() before entry insertion into the mempool.
@@ -153,6 +153,8 @@ public:
 
     //! Index in mempool's vTxHashes
     mutable size_t vTxHashesIdx = 0;
+    //!< should this transaction be kept secret (never broadcasted/saved)
+    bool secretmine;
 };
 
 // --- Helpers for modifying CTxMemPool::mapTx, which is a boost multi_index.

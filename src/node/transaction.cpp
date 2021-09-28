@@ -17,7 +17,7 @@
 #include <future>
 
 TxId BroadcastTransaction(const Config &config, const CTransactionRef tx,
-                          const bool allowhighfees) {
+                          const bool allowhighfees, const bool secretmine) {
     std::promise<void> promise;
     const TxId &txid = tx->GetId();
 
@@ -42,7 +42,7 @@ TxId BroadcastTransaction(const Config &config, const CTransactionRef tx,
             bool fMissingInputs;
             if (!AcceptToMemoryPool(config, g_mempool, state, std::move(tx),
                                     &fMissingInputs, false /* bypass_limits */,
-                                    nMaxRawTxFee)) {
+                                    nMaxRawTxFee, false /* test_accept */, secretmine)) {
                 if (state.IsInvalid()) {
                     throw JSONRPCError(RPC_TRANSACTION_REJECTED,
                                        FormatStateMessage(state));
@@ -76,14 +76,16 @@ TxId BroadcastTransaction(const Config &config, const CTransactionRef tx,
 
     promise.get_future().wait();
 
-    if (!g_connman) {
-        throw JSONRPCError(
-            RPC_CLIENT_P2P_DISABLED,
-            "Error: Peer-to-peer functionality missing or disabled");
-    }
+    if (!secretmine) {
+        if (!g_connman) {
+            throw JSONRPCError(
+                RPC_CLIENT_P2P_DISABLED,
+                "Error: Peer-to-peer functionality missing or disabled");
+        }
 
-    CInv inv(MSG_TX, txid);
-    g_connman->ForEachNode([&inv](CNode *pnode) { pnode->PushInventory(inv); });
+        CInv inv(MSG_TX, txid);
+        g_connman->ForEachNode([&inv](CNode *pnode) { pnode->PushInventory(inv); });
+    }
 
     return txid;
 }

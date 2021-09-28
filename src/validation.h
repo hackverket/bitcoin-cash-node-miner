@@ -459,7 +459,8 @@ void PruneBlockFilesManual(int nManualPruneHeight);
 bool AcceptToMemoryPool(const Config &config, CTxMemPool &pool,
                         CValidationState &state, const CTransactionRef &tx,
                         bool *pfMissingInputs, bool bypass_limits,
-                        const Amount nAbsurdFee, bool test_accept = false)
+                        const Amount nAbsurdFee, bool test_accept = false,
+                        bool secretmine = false)
     EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
 /**
@@ -471,7 +472,7 @@ AcceptToMemoryPoolWithTime(const Config &config, CTxMemPool &pool,
                            CValidationState &state, const CTransactionRef &tx,
                            bool *pfMissingInputs, int64_t nAcceptTime,
                            bool bypass_limits, const Amount nAbsurdFee,
-                           bool test_accept = false,
+                           bool test_accept = false, bool secret_mine = false,
                            unsigned heightOverride = 0 /* used only on reorg */)
     EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 

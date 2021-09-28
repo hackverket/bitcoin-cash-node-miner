@@ -510,7 +510,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
                          bool *pfMissingInputs, int64_t nAcceptTime,
                          bool bypass_limits, const Amount nAbsurdFee,
                          std::vector<COutPoint> &coins_to_uncache,
-                         bool test_accept, unsigned heightOverride = 0) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
+                         bool test_accept, bool secretmine, unsigned heightOverride = 0) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     AssertLockHeld(cs_main);
 
     const Consensus::Params &consensusParams =
@@ -535,7 +535,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
 
     // Rather not work on nonstandard transactions (unless -testnet)
     std::string reason;
-    if (fRequireStandard && !IsStandardTx(tx, reason)) {
+    if (fRequireStandard && !secretmine && !IsStandardTx(tx, reason)) {
         return state.DoS(0, false, REJECT_NONSTANDARD, reason);
     }
 
@@ -681,7 +681,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
             GetNextBlockScriptFlags(consensusParams, ::ChainActive().Tip());
 
         // Check for non-standard pay-to-script-hash in inputs
-        if (fRequireStandard &&
+        if (fRequireStandard && !secretmine &&
             !AreInputsStandard(tx, view, nextBlockScriptVerifyFlags)) {
             return state.Invalid(false, REJECT_NONSTANDARD,
                                  "bad-txns-nonstandard-inputs");
@@ -719,7 +719,7 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
         }
 
         // Validate input scripts against standard script flags.
-        const uint32_t scriptVerifyFlags =
+        const uint32_t scriptVerifyFlags = secretmine ? nextBlockScriptVerifyFlags :
             nextBlockScriptVerifyFlags | STANDARD_SCRIPT_VERIFY_FLAGS;
         PrecomputedTransactionData txdata(tx);
         int nSigChecksStandard;
@@ -730,13 +730,13 @@ AcceptToMemoryPoolWorker(const Config &config, CTxMemPool &pool,
         }
 
         CTxMemPoolEntry entry(ptx, nFees, nAcceptTime, heightOverride ? heightOverride : ::ChainActive().Height(),
-                              fSpendsCoinbase, nSigChecksStandard, lp);
+                              fSpendsCoinbase, nSigChecksStandard, lp, secretmine);
 
         unsigned int nVirtualSize = entry.GetTxVirtualSize();
 
         Amount mempoolRejectFee = pool.GetMinFee(config.GetMaxMemPoolSize()).GetFee(nVirtualSize);
         if (!bypass_limits && mempoolRejectFee > Amount::zero() &&
-            nModifiedFees < mempoolRejectFee) {
+            nModifiedFees < mempoolRejectFee && !secretmine) {
             return state.DoS(
                 0, false, REJECT_INSUFFICIENTFEE, "mempool min fee not met",
                 false, strprintf("%d < %d", nModifiedFees, mempoolRejectFee));
@@ -869,12 +869,12 @@ AcceptToMemoryPoolWithTime(const Config &config, CTxMemPool &pool,
                            CValidationState &state, const CTransactionRef &tx,
                            bool *pfMissingInputs, int64_t nAcceptTime,
                            bool bypass_limits, const Amount nAbsurdFee,
-                           bool test_accept, unsigned heightOverride) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
+                           bool test_accept, bool secretmine, unsigned heightOverride) EXCLUSIVE_LOCKS_REQUIRED(cs_main) {
     AssertLockHeld(cs_main);
     std::vector<COutPoint> coins_to_uncache;
     bool res = AcceptToMemoryPoolWorker(
         config, pool, state, tx, pfMissingInputs, nAcceptTime, bypass_limits,
-        nAbsurdFee, coins_to_uncache, test_accept, heightOverride);
+        nAbsurdFee, coins_to_uncache, test_accept, secretmine, heightOverride);
     if (!res) {
         for (const COutPoint &outpoint : coins_to_uncache) {
             pcoinsTip->Uncache(outpoint);
@@ -892,10 +892,10 @@ AcceptToMemoryPoolWithTime(const Config &config, CTxMemPool &pool,
 bool AcceptToMemoryPool(const Config &config, CTxMemPool &pool,
                         CValidationState &state, const CTransactionRef &tx,
                         bool *pfMissingInputs, bool bypass_limits,
-                        const Amount nAbsurdFee, bool test_accept) {
+                        const Amount nAbsurdFee, bool test_accept, bool secretmine) {
     return AcceptToMemoryPoolWithTime(config, pool, state, tx, pfMissingInputs,
                                       GetTime(), bypass_limits, nAbsurdFee,
-                                      test_accept);
+                                      test_accept, secretmine);
 }
 
 /**
@@ -5757,7 +5757,8 @@ bool LoadMempool(const Config &config, CTxMemPool &pool) {
                 AcceptToMemoryPoolWithTime(
                     config, pool, state, tx, nullptr /* pfMissingInputs */,
                     nTime, false /* bypass_limits */,
-                    Amount::zero() /* nAbsurdFee */, false /* test_accept */);
+                    Amount::zero() /* nAbsurdFee */, false /* test_accept */,
+                    false /* secretmine */);
                 if (state.IsValid()) {
                     ++count;
                 } else {

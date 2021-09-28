@@ -12,6 +12,6 @@ struct TxId;
 
 /** Broadcast a transaction */
 TxId BroadcastTransaction(const Config &config, CTransactionRef tx,
-                          bool allowhighfees = false);
+                          bool allowhighfees = false, bool secretmine = false);
 
 #endif // BITCOIN_NODE_TRANSACTION_H

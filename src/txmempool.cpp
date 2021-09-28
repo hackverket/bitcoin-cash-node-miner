@@ -37,12 +37,12 @@
 
 CTxMemPoolEntry::CTxMemPoolEntry(const CTransactionRef &_tx, const Amount _nFee,
                                  int64_t _nTime, unsigned int _entryHeight,
-                                 bool _spendsCoinbase, int64_t _sigOpCount,
-                                 LockPoints lp)
+                                 bool _spendsCoinbase, int64_t _sigOpsCount,
+                                 LockPoints lp, bool _secretmine)
     : tx(_tx), nFee(_nFee), nTxSize(tx->GetTotalSize()),
       nUsageSize(RecursiveDynamicUsage(tx)), nTime(_nTime),
       entryHeight(_entryHeight), spendsCoinbase(_spendsCoinbase),
-      sigOpCount(_sigOpCount), lockPoints(lp) {
+      sigOpCount(_sigOpsCount), lockPoints(lp), secretmine(_secretmine) {
 
     feeDelta = Amount::zero();
 }
@@ -537,6 +537,11 @@ std::vector<TxMempoolInfo> CTxMemPool::infoAll() const {
 
     const auto & index = mapTx.get<entry_id>();
     for (auto it = index.begin(); it != index.end(); ++it) {
+        if (it->secretmine) {
+            // This hides secret-mined transactions from mempool dumps: both
+            // network BIP35 requests, and the mempool-dumping on shutdown.
+            continue;
+        }
         ret.push_back(GetInfo(mapTx.project<0>(it)));
     }
 
@@ -1227,6 +1232,7 @@ void DisconnectedBlockTransactions::updateMempoolForReorg(const Config &config,
                                                  true /* bypass_limits */,
                                                  Amount::zero() /* nAbsurdFee */,
                                                  false /* test_accept */,
+                                                 false /* secret_mine */,
                                                  ptxInfo ? ptxInfo->height : 0 /* heightOverride */);
             if (!ok && hasFeeDelta) {
                 // tx not accepted: undo mapDelta insertion from above

@@ -1040,7 +1040,7 @@ static UniValue signrawtransactionwithkey(const Config &,
 static UniValue sendrawtransaction(const Config &config,
                                    const JSONRPCRequest &request) {
     if (request.fHelp || request.params.size() < 1 ||
-        request.params.size() > 2) {
+        request.params.size() > 3) {
         throw std::runtime_error(
             RPCHelpMan{"sendrawtransaction",
                 "\nSubmits raw transaction (serialized, hex-encoded) to local node and network.\n"
@@ -1048,6 +1048,7 @@ static UniValue sendrawtransaction(const Config &config,
                 {
                     {"hexstring", RPCArg::Type::STR_HEX, /* opt */ false, /* default_val */ "", "The hex string of the raw transaction"},
                     {"allowhighfees", RPCArg::Type::BOOL, /* opt */ true, /* default_val */ "false", "Allow high fees"},
+                    {"secretmine", RPCArg::Type::BOOL, true, "false", "Mine secret tx"},
                 }}
                 .ToString() +
             "\nResult:\n"
@@ -1066,7 +1067,7 @@ static UniValue sendrawtransaction(const Config &config,
             HelpExampleRpc("sendrawtransaction", "\"signedhex\""));
     }
 
-    RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::MBOOL});
+    RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::MBOOL, UniValue::MBOOL});
 
     // parse hex string from parameter
     CMutableTransaction mtx;
@@ -1081,7 +1082,12 @@ static UniValue sendrawtransaction(const Config &config,
         allowhighfees = request.params[1].get_bool();
     }
 
-    return BroadcastTransaction(config, tx, allowhighfees).GetHex();
+    bool secretmine = false;
+    if (request.params.size() > 2) {
+        secretmine = request.params[2].get_bool();
+    }
+
+    return BroadcastTransaction(config, tx, allowhighfees, secretmine).GetHex();
 }
 
 static UniValue testmempoolaccept(const Config &config,
@@ -1741,7 +1747,7 @@ static const ContextFreeRPCCommand commands[] = {
     { "rawtransactions",    "createrawtransaction",      createrawtransaction,      {"inputs","outputs","locktime"} },
     { "rawtransactions",    "decoderawtransaction",      decoderawtransaction,      {"hexstring"} },
     { "rawtransactions",    "decodescript",              decodescript,              {"hexstring"} },
-    { "rawtransactions",    "sendrawtransaction",        sendrawtransaction,        {"hexstring","allowhighfees"} },
+    { "rawtransactions",    "sendrawtransaction",        sendrawtransaction,        {"hexstring","allowhighfees", "secretmine"} },
     { "rawtransactions",    "combinerawtransaction",     combinerawtransaction,     {"txs"} },
     { "rawtransactions",    "signrawtransactionwithkey", signrawtransactionwithkey, {"hexstring","privkeys","prevtxs","sighashtype"} },
     { "rawtransactions",    "testmempoolaccept",         testmempoolaccept,         {"rawtxs","allowhighfees"} },
